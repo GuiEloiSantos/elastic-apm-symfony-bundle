@@ -1,5 +1,5 @@
 {
-    "name": "myschoolmanagement/elastic-apm-symfony-bundle",
+    "name": "guieloi/elastic-apm-symfony-bundle",
     "type": "symfony-bundle",
     "description": "Integrate Elastic APM into Symfony",
     "keywords": ["metric", "performance", "monitoring"],
