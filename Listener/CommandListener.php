@@ -18,6 +18,7 @@ use ElasticApmBundle\Interactor\ElasticApmInteractorInterface;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Event\ConsoleErrorEvent;
+use Symfony\Component\Console\Event\ConsoleExceptionEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 class CommandListener implements EventSubscriberInterface
@@ -33,9 +34,14 @@ class CommandListener implements EventSubscriberInterface
 
     public static function getSubscribedEvents(): array
     {
+        // Check if ConsoleEvents::ERROR constant exists
+        $errorConstant = defined('Symfony\Component\Console\ConsoleEvents::ERROR') ?
+            ConsoleEvents::ERROR :
+            ConsoleEvents::EXCEPTION;
+
         return [
             ConsoleEvents::COMMAND => ['onConsoleCommand', 0],
-            ConsoleEvents::ERROR => ['onConsoleError', 0],
+            $errorConstant => ['onConsoleError', 0],
         ];
     }
 
@@ -47,10 +53,10 @@ class CommandListener implements EventSubscriberInterface
         $this->interactor->setTransactionName($command->getName());
 
         foreach ($input->getOptions() as $key => $value) {
-            $key = '--'.$key;
+            $key = '--' . $key;
             if (\is_array($value)) {
                 foreach ($value as $k => $v) {
-                    $this->interactor->addCustomContext($key.'['.$k.']', $v);
+                    $this->interactor->addCustomContext($key . '[' . $k . ']', $v);
                 }
             } else {
                 $this->interactor->addCustomContext($key, $value);
@@ -60,7 +66,7 @@ class CommandListener implements EventSubscriberInterface
         foreach ($input->getArguments() as $key => $value) {
             if (\is_array($value)) {
                 foreach ($value as $k => $v) {
-                    $this->interactor->addCustomContext($key.'['.$k.']', $v);
+                    $this->interactor->addCustomContext($key . '[' . $k . ']', $v);
                 }
             } else {
                 $this->interactor->addCustomContext($key, $value);
@@ -70,18 +76,38 @@ class CommandListener implements EventSubscriberInterface
         $this->interactor->addContextFromConfig();
     }
 
-    public function onConsoleError(ConsoleErrorEvent $event): void
+    /**
+     * @param ConsoleErrorEvent|ConsoleExceptionEvent $event
+     */
+    public function onConsoleError($event): void
     {
-        if (! $this->config->shouldExplicitlyCollectCommandExceptions()) {
+        if (!$this->config->shouldExplicitlyCollectCommandExceptions()) {
             return;
         }
 
         $this->interactor->addContextFromConfig();
-        $this->interactor->noticeThrowable($event->getError());
+        $this->interactor->noticeThrowable($this->getError($event));
 
-        if (null !== $event->getError()->getPrevious()) {
+        if (null !== $this->getError($event)->getPrevious()) {
             $this->interactor->addContextFromConfig();
-            $this->interactor->noticeThrowable($event->getError()->getPrevious());
+            $this->interactor->noticeThrowable($this->getError($event)->getPrevious());
         }
+    }
+
+    /**
+     * @param ConsoleErrorEvent|ConsoleExceptionEvent $event
+     * @return \Throwable|null
+     */
+    private function getError($event): ?\Throwable
+    {
+        if (\class_exists(ConsoleErrorEvent::class) && $event instanceof ConsoleErrorEvent) {
+            return $event->getError();
+        }
+
+        if ($event instanceof ConsoleExceptionEvent) {
+            return $event->getException();
+        }
+
+        throw new \RuntimeException('Unknown event type');
     }
 }

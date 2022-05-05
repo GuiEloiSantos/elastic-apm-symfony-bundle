@@ -44,8 +44,8 @@ class ElasticApmExtension extends Extension
         $loader = new Loader\XmlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.xml');
 
-        $container->setAlias(ElasticApmInteractorInterface::class, $this->getInteractorServiceId($config))->setPublic(false);
-        $container->setAlias(TransactionNamingStrategyInterface::class, $this->getTransactionNamingServiceId($config))->setPublic(false);
+        $container->setAlias(ElasticApmInteractorInterface::class, $this->getInteractorServiceId($config));
+        $container->setAlias(TransactionNamingStrategyInterface::class, $this->getTransactionNamingServiceId($config));
 
         $container->getDefinition(Config::class)
             ->setArguments(
