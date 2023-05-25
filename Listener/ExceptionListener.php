@@ -26,6 +26,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
  */
 class ExceptionListener implements EventSubscriberInterface
 {
+    const CUSTOM_APM_EXCEPTION_LABEL = 'custom.apm.exception';
     private $interactor;
     private $ignoredExceptions;
 
@@ -48,14 +49,38 @@ class ExceptionListener implements EventSubscriberInterface
     public function onKernelException(KernelExceptionEvent $event): void
     {
         $exception = \method_exists($event, 'getThrowable') ? $event->getThrowable() : $event->getException();
-        if (! $exception instanceof HttpExceptionInterface && ! in_array(get_class($exception), $this->ignoredExceptions)) {
+        if (!$exception instanceof HttpExceptionInterface && !in_array(
+                get_class($exception),
+                $this->ignoredExceptions
+            )) {
             $this->interactor->addContextFromConfig();
             $this->interactor->noticeThrowable($exception);
         }
+
+        if ($exception instanceof \Throwable) {
+            // always decorate the existing transaction with the exception
+            $this->interactor->addLabel($this->getApmExceptionLabel('.exception'), get_class($exception));
+            $this->interactor->addLabel($this->getApmExceptionLabel('.message'), $exception->getMessage());
+            $this->interactor->addLabel($this->getApmExceptionLabel('.code'), $exception->getCode());
+            // get line where the exception is thrown
+            $trace = $exception->getTrace();
+            if (isset($trace[0]['line'])) {
+                $this->interactor->addLabel($this->getApmExceptionLabel('.file'), $trace[0]['file']);
+                $this->interactor->addLabel($this->getApmExceptionLabel('.line'), $trace[0]['line']);
+            }
+        }
+    }
+
+    /**
+     * @return string
+     */
+    private function getApmExceptionLabel(string $suffix): string
+    {
+        return self::CUSTOM_APM_EXCEPTION_LABEL . $suffix;
     }
 }
 
-if (! \class_exists(KernelExceptionEvent::class)) {
+if (!\class_exists(KernelExceptionEvent::class)) {
     if (\class_exists(ExceptionEvent::class)) {
         \class_alias(ExceptionEvent::class, KernelExceptionEvent::class);
     } else {
