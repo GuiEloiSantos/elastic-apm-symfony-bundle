@@ -72,6 +72,7 @@ class ExceptionListener implements EventSubscriberInterface
     }
 
     /**
+     * @param string $suffix
      * @return string
      */
     private function getApmExceptionLabel(string $suffix): string
